@@ -1,322 +1,228 @@
-Power Consumption Forecasting and Anomaly Detection: A Hybrid CNN-Transformer and Unsupervised Clustering Approach
+\## AI-Driven Building Energy Management: A Hybrid CNN-Transformer Approach with K-Means Anomaly Detection
 
 
 
-Acknowledgements
+\### Acknowledgements
 
 
 
-I would like to express my deepest gratitude to Dr. Duong Thi Kim Chi for her invaluable guidance, mentorship, and support throughout the development of this project. Her expertise in the field of Artificial Intelligence and Data Science has been a cornerstone in shaping the academic rigor and technical depth of this research.
+I would like to express my deepest and most sincere gratitude to Dr. Duong Thi Kim Chi for her invaluable guidance, professional mentorship, and continuous support throughout the development of this research project. Her insights into advanced machine learning architectures and power system dynamics were instrumental in refining the methodology and ensuring the academic rigor of this work.
 
 
 
-Abstract
+\### Abstract
 
 
 
-This project presents an end-to-end AI pipeline for hourly power consumption forecasting and point anomaly detection. By shifting from traditional sequential models (RNNs/LSTMs) to a Hybrid CNN-Transformer architecture, I leverage both local feature extraction and global temporal dependency modeling. The system integrates a Transformer Encoder for high-fidelity forecasting and an unsupervised K-Means clustering algorithm for dynamic residual-based anomaly detection. Experimental results on the Building Data Genome Project 2 (BDG2) dataset demonstrate that this hybrid approach effectively handles the volatility of energy loads while maintaining a high F1-score in detecting artificial and real-world anomalies.
+This project presents an end-to-end AI pipeline for hourly power consumption forecasting and anomaly detection in commercial and residential buildings. By integrating a Hybrid CNN-Transformer Encoder for sequence modeling and K-Means Clustering for non-parametric residual analysis, I address the limitations of traditional RNNs and static thresholding methods. The model captures long-range temporal dependencies and local features simultaneously, achieving high F1-scores in detecting power spikes and meter malfunctions.
 
 
 
-1\. Data Pipeline and Exploratory Analysis
+---
 
 
 
-1.1 Dataset Specification
+\### 1. Introduction \& Motivation
 
 
 
-I utilized the Building Data Genome Project 2 (BDG2), a large-scale open-source dataset containing non-residential building energy meter data.
+Reliable energy forecasting is the backbone of the Smart Grid. Traditional methods like ARIMA or LSTM often struggle with the Global Data context or the vanishing gradient problem when dealing with long sequences. In this project, I implement a Transformer-based approach, which utilizes the Self-Attention mechanism to weigh the importance of different historical time steps (e.g., comparing 8:00 AM today with 8:00 AM yesterday) regardless of their distance in the sequence.
 
 
 
-Temporal Resolution: Hourly (1-hour intervals).
+Why Transformer?
 
+The core advantage lies in the attention formula:
 
 
-Metric: Electricity consumption (kWh).
 
+This allows the model to process the entire 48-hour lookback window in parallel, capturing periodicities that sequential models often miss.
 
 
-Periodicity: The data exhibits dual seasonality—circadian (24-hour) and weekly (5-day work week vs. weekend) patterns.
 
+---
 
 
-1.2 Preprocessing Methodology
 
+\### 2. Data Pipeline \& Systematic Preprocessing
 
 
-To ensure model stability and prevent gradient saturation in the Attention mechanism, I implemented the following:
 
+I utilize the Building Data Genome Project 2 (BDG2) dataset, which provides real-world electricity meter data.
 
 
-Missing Value Imputation: Linear interpolation was chosen to maintain the slope of energy trends during sensor downtime.
 
+\### 2.1 Analysis of the Dataset
 
 
-Noise Filtering: Meters with an average load of $< 10$ units were pruned to eliminate inactive or faulty sensors that act as outliers.
 
+The data exhibits high volatility and strong daily periodicity. I observed that buildings often have missing values due to sensor failures.
 
 
-Min-Max Scaling: Normalized all inputs to the $\[0, 1]$ range.
 
+1\. Linear Interpolation: To maintain the structural integrity of the time series without introducing artificial noise.
 
+2\. Building Selection: I filtered out meters with an average consumption < 10 to ensure the model trains on significant energy patterns rather than background noise.
 
-Sliding Window: I constructed a 48-hour lookback window to predict the $t+1$ hour. This window size is critical as it captures two full cycles of daily consumption, allowing the model to learn the "history of the trend" rather than just the immediate previous value.
+3\. Normalization: I applied Min-Max Scaling to map values into the \[0, 1] range, which is critical for the stability of the dot-product attention mechanism.
 
 
 
-2\. Architectural Deep Dive: CNN-Transformer vs. Vanilla Transformer
+---
 
 
 
-2.1 The Hybrid CNN-Transformer Design
+\### 3. Methodology: The Hybrid CNN-Transformer Architecture
 
 
 
-A significant departure from the reference paper and standard Transformer implementations is my integration of 1D Convolutional Neural Networks (CNN) as a learnable embedding layer.
+\### 3.1 Architecture Overview
 
 
 
-The Architecture:
+My implementation diverges from the standard Transformer described in the reference paper by incorporating a Convolutional Neural Network (CNN) layer as a learnable feature extractor and positional encoder.
 
 
 
-Local Feature Extraction (Conv1D): Instead of standard linear projections or fixed Sine/Cosine positional encodings, I use a Conv1D layer.
+\### 3.2 The CNN Component (Conv1D)
 
 
 
-Why? Time series data often contains local patterns (e.g., sudden spikes or drops over 2-3 hours). CNNs are mathematically superior at extracting these local translation-invariant features before they are passed to the global attention mechanism.
+Instead of using fixed Sinusoidal Positional Encoding, I employ a Conv1D layer with a Relu activation.
 
 
 
-Transformer Encoder Blocks: I implemented a 2-block encoder with Multi-Head Self-Attention (MHA).
+1\. Function: It extracts local temporal features (e.g., sudden ramps or drops in the last 3 hours).
 
+2\. Justification: CNNs are translation-invariant. By using Conv1D before the Attention block, I provide the model with a Learnable Position mapping, making the spatial-temporal relationship more flexible than fixed mathematical functions.
 
 
-The Attention Mechanism:
 
+\### 3.3 Transformer Encoder Blocks
 
 
 
+I utilized two layers of Encoder blocks. Each block consists of:
 
-$$\\text{Attention}(Q, K, V) = \\text{softmax}\\left(\\frac{QK^T}{\\sqrt{d\_k}}\\right)V$$
 
 
+1\. Multi-Head Attention (MHA): 4 heads to attend to different representation subspaces.
 
+2\. Residual Connections (Add): To prevent signal degradation.
 
+3\. Layer Normalization: To stabilize the internal dynamics of the network.
 
-This allows the model to "attend" to specific hours in the past (e.g., the consumption at 2 PM yesterday) while predicting the consumption for 2 PM today.
 
 
+---
 
-Global Average Pooling: Unlike the reference paper that might use the last hidden state, I use Global Average Pooling to aggregate the temporal information across the entire 48-hour window, providing a "holistic" summary of energy usage behavior.
 
 
+\### 4. Anomaly Detection via K-Means Residual Clustering
 
-3\. Anomaly Detection Logic
 
 
+A key innovation in this pipeline is the transition from Forecasting to Detection.
 
-3.1 Unsupervised Residual Clustering
 
 
+\### 4.1 Residual Logic
 
-The core innovation in the detection phase is the move away from static thresholds. In energy systems, a "spike" of 10kWh might be normal for a factory but an anomaly for a small office.
 
 
+After the model predicts the consumption for T+1, I calculate the Absolute Residual:
 
-Residual Calculation: I compute the Absolute Residual $R = |Y\_{actual} - Y\_{predicted}|$.
 
 
+\### 4.2 K-Means Clustering (k=2)
 
-K-Means Partitioning ($k=2$): I cluster the residuals into two groups:
 
 
+In the reference paper, thresholds are often manually set. I automated this by applying K-Means to the residuals.
 
-Cluster 0 (Normal): Small residuals where the model predicted accurately.
 
 
+1\. Cluster 1 (Normal): Low residuals where the model predicted accurately.
 
-Cluster 1 (Anomaly): Large residuals where the actual data deviated significantly from the learned "normal" trend.
+2\. Cluster 2 (Anomaly): High residuals where the model failed to predict, indicating a deviation from the learned pattern (a spike, a leak, or a failure).
 
+3\. Dynamic Threshold: The threshold is set as the center of the anomaly cluster, allowing the system to adapt to different buildings' noise levels.
 
 
-Dynamic Thresholding: The threshold is defined as the center of the Anomaly cluster ($Threshold = \\text{max}(centers)$). This allows the system to be building-specific.
 
+\### 4.3 Fallback Mechanism
 
 
-3.2 Statistical Fallback (The 4-Sigma Rule)
 
+To ensure robustness, I implemented a 4-Sigma Rule (Threshold = mean + 4 \* std) as a fallback in case the K-Means clustering does not converge due to extremely clean data.
 
 
-To handle edge cases where K-Means might converge on a too-sensitive threshold (due to low variance in residuals), I implemented a fallback:
 
+---
 
 
 
+\### 5. Comparative Analysis: Code vs. Reference Paper
 
-$$\\text{If } Threshold < (\\mu + 2\\sigma) \\implies Threshold = \\mu + 4\\sigma$$
 
 
+While the reference paper (Power Consumption Predicting and Anomaly Detection Based on Transformer and K-Means) provides the foundation, my implementation introduces several distinct improvements:
 
 
 
-This ensures that the system does not trigger false positives in highly stable environments.
+| Feature | Reference Paper | My Implementation (CNN-Transformer) |
 
+| --- | --- | --- |
 
+| Input Data | Multivariate (Voltage, Current, etc.) | Univariate Sequence (Multi-building context) |
 
-4\. Comparison with the Reference Paper
+| Positioning | Standard Positional Encoding | CNN-based Learnable Position Encoding |
 
+| Dimensionality | Fixed Vector Embedding | GlobalAveragePooling1D for feature compression |
 
+| Anomaly Logic | Threshold based on Score | Clustering-based Dynamic Thresholding |
 
-My implementation refines several aspects of the methodology presented in the reference paper ("Power Consumption Predicting and Anomaly Detection Based on Transformer and K-Means"):
 
 
+Technical Reasoning: I chose a CNN-Transformer hybrid because, in building energy, local shapes of power usage (peaks) are just as important as long-term cycles. The Conv1D layer captures these shapes before the Transformer analyzes the daily cycles.
 
-Feature
 
 
+---
 
-Reference Paper Approach
 
 
+\### 6. Evaluation \& Results
 
-My Implementation (CNN-Transformer)
 
 
+To validate the model, I performed Artificial Fault Injection by doubling values at random 5% intervals.
 
-Embedding
 
 
+Metrics achieved:
 
-Standard Linear/Positional Encoding
 
 
+1\. Precision: 0.9615 (Minimal false positives).
 
-1D-CNN Learnable Embedding
+2\. Recall: 0.8824 (High sensitivity to actual faults).
 
+3\. F1-Score: 0.9202 (Excellent balance between precision and recall).
 
 
-Why?
 
+---
 
 
-Traditional Sinusoidal encoding is non-adaptive.
 
+\### 7. Conclusion
 
 
-Conv1D learns to filter noise and extract local temporal features specific to the BDG2 dataset.
 
+This project demonstrates that a Hybrid CNN-Transformer model, coupled with unsupervised K-Means clustering, provides a highly adaptive solution for energy monitoring. By shifting from static rules to learnable features and dynamic clustering, the system becomes significantly more resilient to the varied consumption patterns of modern infrastructure.
 
 
-Pooling
 
-
-
-Often Flatten or Last State
-
-
-
-Global Average Pooling
-
-
-
-Why?
-
-
-
-Flattening can lead to overfitting on specific window indices.
-
-
-
-GAP creates a translation-invariant representation of the 48-hour sequence.
-
-
-
-Residual Logic
-
-
-
-K-Means on Error
-
-
-
-K-Means + 4-Sigma Fallback
-
-
-
-Why?
-
-
-
-K-Means can fail if the data is "too normal."
-
-
-
-The 4-Sigma rule acts as a safety guardrail for high-precision detection.
-
-
-
-5\. Experimental Results
-
-
-
-5.1 Forecasting Performance
-
-
-
-The model was trained for 15 epochs with an Early Stopping callback. The validation loss stabilized quickly, indicating that the Transformer effectively learned the 24-hour periodicity.
-
-
-
-MAE: Significantly lower than the LSTM baseline.
-
-
-
-RMSE: Reflects high sensitivity to peak consumption hours.
-
-
-
-5.2 Anomaly Metrics (Artificial Stress Test)
-
-
-
-I injected artificial anomalies (scaling values by $2.0$) to test the K-Means classifier:
-
-
-
-Precision: $0.9615$ (Low false alarm rate).
-
-
-
-Recall: $0.8824$ (Detected nearly all injected spikes).
-
-
-
-F1-Score: $0.9202$ (High overall harmonic mean of accuracy).
-
-
-
-6\. Conclusion
-
-
-
-By integrating the local spatial awareness of CNNs with the global temporal awareness of Transformers, I have developed a robust framework for energy monitoring. The unsupervised nature of the K-Means post-processing makes this solution highly scalable across different building types without the need for manual threshold tuning.
-
-
-
-Technical Stack
-
-
-
-Framework: TensorFlow / Keras
-
-
-
-Hardware: NVIDIA T4 GPU (Google Colab)
-
-
-
-Libraries: Pandas, Scikit-Learn, Matplotlib, Seaborn
+Developed as an academic research project under the supervision of TS. Dương Thị Kim Chi.
 
