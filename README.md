@@ -1,4 +1,4 @@
-# AI-Driven Building Energy Management  
+# AI-Driven Building Energy Management
 ## A Hybrid CNN-Transformer Approach with K-Means Anomaly Detection
 
 ---
@@ -17,7 +17,7 @@ This project presents an end-to-end AI pipeline for hourly power consumption for
 
 ## 1. Introduction & Motivation
 
-Reliable energy forecasting is the backbone of the Smart Grid. Traditional methods such as ARIMA or LSTM often struggle with the *global data context* or the vanishing gradient problem when dealing with long sequences.  
+Reliable energy forecasting is the backbone of the Smart Grid. Traditional methods such as ARIMA or LSTM often struggle with the *global data context* or the vanishing gradient problem when dealing with long sequences.
 
 In this project, a **Transformer-based approach** is implemented, leveraging the **Self-Attention mechanism** to weigh the importance of different historical time steps (e.g., comparing 8:00 AM today with 8:00 AM yesterday) regardless of their distance in the sequence.
 
@@ -25,9 +25,9 @@ In this project, a **Transformer-based approach** is implemented, leveraging the
 
 The core advantage lies in the attention formulation:
 
-\[
+$$
 Attention(Q, K, V) = \text{softmax}\left(\frac{QK^T}{\sqrt{d_k}}\right)V
-\]
+$$
 
 This allows the model to process the entire 48-hour lookback window in parallel, capturing periodicities that sequential models often miss.
 
@@ -41,9 +41,9 @@ The **Building Data Genome Project 2 (BDG2)** dataset is utilized, providing rea
 
 The data exhibits high volatility and strong daily periodicity. Missing values are frequently observed due to sensor failures.
 
-- **Linear Interpolation**: Maintains structural integrity of the time series without introducing artificial noise.  
-- **Building Selection**: Meters with average consumption < 10 are filtered out to avoid training on background noise.  
-- **Normalization**: Min-Max Scaling is applied to map values into the \([0, 1]\) range, which is critical for the stability of the dot-product attention mechanism.
+- **Linear Interpolation**: Maintains structural integrity of the time series without introducing artificial noise.
+- **Building Selection**: Meters with average consumption < 10 are filtered out to avoid training on background noise.
+- **Normalization**: Min-Max Scaling is applied to map values into the $[0, 1]$ range, which is critical for the stability of the dot-product attention mechanism.
 
 ---
 
@@ -57,15 +57,15 @@ The implementation diverges from the standard Transformer by incorporating a **C
 
 Instead of fixed sinusoidal positional encoding, a **Conv1D layer with ReLU activation** is employed.
 
-- **Function**: Extracts local temporal features (e.g., sudden ramps or drops within the last 3 hours).  
+- **Function**: Extracts local temporal features (e.g., sudden ramps or drops within the last 3 hours).
 - **Justification**: CNNs are translation-invariant. By applying Conv1D before the attention block, the model gains a *learnable positional mapping*, offering greater flexibility than fixed mathematical encodings.
 
 ### 3.3 Transformer Encoder Blocks
 
 Two encoder layers are utilized, each consisting of:
 
-- **Multi-Head Attention (MHA)**: 4 heads to attend to different representation subspaces.  
-- **Residual Connections (Add)**: Prevent signal degradation.  
+- **Multi-Head Attention (MHA)**: 4 heads to attend to different representation subspaces.
+- **Residual Connections (Add)**: Prevent signal degradation.
 - **Layer Normalization**: Stabilizes internal network dynamics.
 
 ---
@@ -76,30 +76,30 @@ A key innovation is the transition from **forecasting** to **detection**.
 
 ### 4.1 Residual Logic
 
-After predicting consumption at \(T+1\), the absolute residual is computed:
+After predicting consumption at $T+1$, the absolute residual is computed:
 
-\[
+$$
 R_t = |Y_{actual} - Y_{predicted}|
-\]
+$$
 
-### 4.2 K-Means Clustering (\(k = 2\))
+### 4.2 K-Means Clustering ($k = 2$)
 
 Rather than manually defining thresholds, K-Means is applied to residuals:
 
-- **Cluster 1 (Normal)**: Low residuals where predictions are accurate.  
+- **Cluster 1 (Normal)**: Low residuals where predictions are accurate.
 - **Cluster 2 (Anomaly)**: High residuals indicating spikes, leaks, or failures.
 
-**Dynamic Threshold**: Defined as the center of the anomaly cluster (\(\mu_{anomaly}\)), allowing adaptation to different building noise levels.
+**Dynamic Threshold**: Defined as the center of the anomaly cluster ($\mu_{anomaly}$), allowing adaptation to different building noise levels.
 
 ### 4.3 Fallback Mechanism
 
 A **4-Sigma Rule** is implemented as a safeguard:
 
-\[
+$$
 Threshold = mean + 4 \times std
-\]
+$$
 
-This is used when K-Means fails to converge due to extremely clean data.
+This rule is used when K-Means fails to converge due to extremely clean data.
 
 ---
 
@@ -108,7 +108,7 @@ This is used when K-Means fails to converge due to extremely clean data.
 While the reference paper *“Power Consumption Predicting and Anomaly Detection Based on Transformer and K-Means”* provides the foundation, several improvements are introduced:
 
 | Feature | Reference Paper | My Implementation (CNN-Transformer) |
-|------|----------------|-------------------------------------|
+|-------|----------------|-------------------------------------|
 | Input Data | Multivariate (Voltage, Current, etc.) | Univariate Sequence (Multi-building context) |
 | Positioning | Standard Positional Encoding | CNN-based Learnable Position Encoding |
 | Dimensionality | Fixed Vector Embedding | GlobalAveragePooling1D |
@@ -124,9 +124,9 @@ To validate robustness, **Artificial Fault Injection** was performed by doubling
 
 **Metrics Achieved**:
 
-- **Precision**: 0.9615  
-- **Recall**: 0.8824  
-- **F1-Score**: 0.9202  
+- **Precision**: 0.9615
+- **Recall**: 0.8824
+- **F1-Score**: 0.9202
 
 These results indicate excellent balance between sensitivity and false alarm control.
 
